@@ -53,15 +53,15 @@ Scans staged files before every commit to detect and remove sensitive data.
 **Commands:**
 ```bash
 # Scan for secrets only
-node index.js scan
+bobguard scan
 
 # Scan and auto-remove secrets
-node index.js scan --auto-remove
+bobguard scan --auto-remove
 ```
 
 **Example:**
 ```bash
-$ node index.js scan
+$ bobguard scan
 [Bob] Scanning for secrets...
 [Bob] Found API key in src/config.js:12
 [Bob] Removed: OPENAI_API_KEY="sk-proj-..."
@@ -84,13 +84,13 @@ Uses IBM watsonx.ai to analyze your code changes and generate descriptive commit
 **Commands:**
 ```bash
 # Generate AI commit message
-node index.js commit
+bobguard commit
 ```
 
 **Example:**
 ```bash
 $ git add .
-$ node index.js commit
+$ bobguard commit
 
 [Bob] Analyzing changes...
 [Bob] Generated commit message:
@@ -119,7 +119,7 @@ Reads all commit messages per branch, maps function ownership, and merges code i
 **Commands:**
 ```bash
 # Smart merge with auto-resolution
-node index.js merge <branch> --auto
+bobguard merge <branch> --auto
 ```
 
 **Example:**
@@ -139,7 +139,7 @@ Combines secret scanning and AI commit generation in one command.
 **Commands:**
 ```bash
 # Run full workflow (scan + commit)
-node index.js guard
+bobguard guard
 ```
 
 ---
@@ -169,7 +169,7 @@ BobGuard integrates seamlessly into your existing Git workflow:
 ```bash
 git add .
     ↓
-node index.js guard
+bobguard guard
     ↓
 [Bob] Scan secrets → remove + notify
     ↓
@@ -179,7 +179,7 @@ git commit -m "Generated message"
     ↓
 git push
     ↓
-node index.js merge feature-branch --auto
+bobguard merge feature-branch --auto
     ↓
 [Bob] Read all commits → map ownership
     ↓
@@ -247,7 +247,14 @@ BobGuard is built with cutting-edge AI and Git integration:
    npm install
    ```
 
-3. **Configure watsonx.ai credentials:**
+3. **Install BobGuard globally:**
+   ```bash
+   npm install -g .
+   ```
+   
+   After installation, you can use `bobguard` command anywhere in your system.
+
+4. **Configure watsonx.ai credentials:**
    
    Create a `.env` file in the project root:
    ```bash
@@ -264,16 +271,16 @@ BobGuard is built with cutting-edge AI and Git integration:
 **Scan for secrets:**
 ```bash
 # Scan only
-node index.js scan
+bobguard scan
 
 # Scan and auto-remove
-node index.js scan --auto-remove
+bobguard scan --auto-remove
 ```
 
 **Generate AI commit message:**
 ```bash
 git add .
-node index.js commit
+bobguard commit
 
 # The AI will analyze your changes and generate a commit message
 # You'll be asked to confirm before committing
@@ -282,12 +289,12 @@ node index.js commit
 **Full workflow (scan + commit):**
 ```bash
 git add .
-node index.js guard
+bobguard guard
 ```
 
 **Smart merge:**
 ```bash
-node index.js merge feature-branch --auto
+bobguard merge feature-branch --auto
 ```
 
 **Without watsonx.ai credentials:**
@@ -320,7 +327,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Use `node index.js commit` for your commits
+3. Use `bobguard commit` for your commits
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 

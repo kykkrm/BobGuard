@@ -92,8 +92,8 @@ class BobGuard {
     
     console.log(chalk.cyan.bold('CONFIGURATION:\n'));
     console.log(chalk.gray('  Create a .env file with your credentials:'));
-    console.log(chalk.gray('    WATSONX_[REDACTED_GENERIC_API_KEY]));
-    console.log(chalk.gray('    WATSONX_[REDACTED_GENERIC_API_KEY]));
+    console.log(chalk.gray('    WATSONX_API_KEY=your_ibm_cloud_api_key'));
+    console.log(chalk.gray('    WATSONX_API_KEY=your_ibm_cloud_api_key'));
     console.log(chalk.gray('    WATSONX_PROJECT_ID=your_watsonx_project_id\n'));
     
     console.log(chalk.cyan.bold('FEATURES:\n'));
@@ -226,15 +226,14 @@ async function main() {
   process.exit(success ? 0 : 1);
 }
 
-// Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error(chalk.red('\nFatal error:'), error.message);
-    console.error(chalk.gray('\nStack trace:'), error.stack);
-    process.exit(1);
-  });
-}
+// Run main function
+main().catch(error => {
+  console.error(chalk.red('\nFatal error:'), error.message);
+  console.error(chalk.gray('\nStack trace:'), error.stack);
+  process.exit(1);
+});
 
 export default BobGuard;
 
 // Made with Bob
+

@@ -10,6 +10,16 @@ const git = simpleGit();
 class SecretScanner {
   constructor(autoRemove = false) {
     this.autoRemove = autoRemove;
+    this.whitelist = [
+      'your_api_key',
+      'your_ibm_cloud_api_key',
+      'your_project_id',
+      'your_token',
+      'placeholder',
+      'example',
+      '<',
+      '>'
+    ];
     this.patterns = [
       { name: 'AWS Access Key', regex: /AKIA[0-9A-Z]{16}/ },
       { name: 'AWS Secret Key', regex: /aws_secret_access_key\s*=\s*['"]?([A-Za-z0-9/+=]{40})['"]?/ },
@@ -44,6 +54,10 @@ class SecretScanner {
     }
   }
 
+  isWhitelisted(line) {
+    return this.whitelist.some(pattern => line.includes(pattern));
+  }
+
   async scanFile(filePath) {
     try {
       const content = await readFile(filePath, 'utf-8');
@@ -51,6 +65,11 @@ class SecretScanner {
       const findings = [];
 
       lines.forEach((line, index) => {
+        // Skip whitelisted lines (placeholders/examples)
+        if (this.isWhitelisted(line)) {
+          return;
+        }
+        
         this.patterns.forEach(pattern => {
           if (pattern.regex.test(line)) {
             findings.push({

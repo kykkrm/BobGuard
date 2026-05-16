@@ -200,12 +200,43 @@ Write ONLY the commit message:`;
           generatedText = generatedText.split('###')[0].trim();
         }
         
-        // Remove any duplicate sections (sometimes AI repeats the entire message)
+        // Remove meta-instructions after first empty line
         const lines = generatedText.split('\n');
+        const cleanedLines = [];
+        let foundEmptyLine = false;
+        
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          
+          // Track if we've seen an empty line
+          if (!trimmedLine) {
+            foundEmptyLine = true;
+            cleanedLines.push(line);
+            continue;
+          }
+          
+          // After empty line, check for meta-instructions
+          if (foundEmptyLine) {
+            const lowerLine = trimmedLine.toLowerCase();
+            if (lowerLine.includes('the commit message should') ||
+                lowerLine.includes("here's the final") ||
+                lowerLine.includes('here is the final') ||
+                lowerLine.includes('note:') ||
+                lowerLine.includes('explanation:') ||
+                lowerLine.includes('this commit message')) {
+              // Stop processing - this is meta-instruction
+              break;
+            }
+          }
+          
+          cleanedLines.push(line);
+        }
+        
+        // Remove any duplicate sections (sometimes AI repeats the entire message)
         const uniqueLines = [];
         const seenLines = new Set();
         
-        for (const line of lines) {
+        for (const line of cleanedLines) {
           const normalized = line.trim().toLowerCase();
           if (normalized && !seenLines.has(normalized)) {
             seenLines.add(normalized);

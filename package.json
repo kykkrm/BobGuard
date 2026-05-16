@@ -4,6 +4,9 @@
   "description": "AI-powered Git guardian for secret scanning, smart commit messages, and intelligent merging",
   "main": "index.js",
   "type": "module",
+  "bin": {
+    "bobguard": "./index.js"
+  },
   "scripts": {
     "start": "node index.js",
     "scan": "node secret-scanner.js",
