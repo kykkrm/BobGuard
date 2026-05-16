@@ -1,9 +1,5 @@
 # BobGuard
 
-![IBM Bob](https://img.shields.io/badge/Powered%20by-IBM%20Bob-0f62fe?style=for-the-badge&logo=ibm)
-![GitHub](https://img.shields.io/badge/GitHub-Integration-181717?style=for-the-badge&logo=github)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-
 **AI-Powered Git Workflow Guard**
 
 BobGuard is an intelligent Git workflow layer that scans secrets, writes commit messages, and merges code intelligently — no function left behind.
