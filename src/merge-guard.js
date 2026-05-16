@@ -78,15 +78,29 @@ class MergeGuard {
       /var\s+(\w+)\s*=\s*function/,
       /var\s+(\w+)\s*=\s*\([^)]*\)\s*=>/,
       /async\s+function\s+(\w+)\s*\(/,
-      /(\w+)\s*:\s*function/,
-      /(\w+)\s*:\s*\([^)]*\)\s*=>/,
-      /(\w+)\s*\([^)]*\)\s*{/
     ];
     for (const pattern of patterns) {
       const match = code.match(pattern);
       if (match) return match[1];
     }
     return null;
+  }
+
+  // Extract ALL function names from a block of code
+  extractAllFunctionNames(code) {
+    const patterns = [
+      /function\s+(\w+)\s*\(/g,
+      /const\s+(\w+)\s*=\s*function/g,
+      /const\s+(\w+)\s*=\s*\([^)]*\)\s*=>/g,
+      /let\s+(\w+)\s*=\s*function/g,
+      /async\s+function\s+(\w+)\s*\(/g,
+    ];
+    const names = new Set();
+    for (const pattern of patterns) {
+      const matches = [...code.matchAll(pattern)];
+      matches.forEach(m => names.add(m[1]));
+    }
+    return [...names];
   }
 
   generateSmartSuffix(code) {
@@ -128,36 +142,63 @@ class MergeGuard {
     return updatedCode;
   }
 
-  handleDuplicateFunctions(currentCode, incomingCode) {
-    const currentFuncName = this.extractFunctionName(currentCode);
-    const incomingFuncName = this.extractFunctionName(incomingCode);
-
-    if (currentFuncName && incomingFuncName && currentFuncName === incomingFuncName) {
-      console.log(chalk.yellow(`⚠ Duplicate function detected: ${currentFuncName}`));
-      const suffix = this.generateSmartSuffix(incomingCode);
-      const newIncomingName = `${incomingFuncName}${suffix}`;
-      console.log(chalk.blue(`  → Renaming incoming function to: ${newIncomingName}`));
-
-      let renamedIncoming = incomingCode;
-      const patterns = [
-        { regex: new RegExp(`(function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(const\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(const\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(let\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(let\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(async\\s+function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
-      ];
-      for (const { regex, replacement } of patterns) {
-        if (regex.test(renamedIncoming)) {
-          renamedIncoming = renamedIncoming.replace(regex, replacement);
-          break;
-        }
+  renameFunctionInCode(code, oldName, newName) {
+    const patterns = [
+      new RegExp(`(function\\s+)${oldName}(\\s*\\()`, 'g'),
+      new RegExp(`(const\\s+)${oldName}(\\s*=\\s*function)`, 'g'),
+      new RegExp(`(const\\s+)${oldName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`, 'g'),
+      new RegExp(`(let\\s+)${oldName}(\\s*=\\s*function)`, 'g'),
+      new RegExp(`(async\\s+function\\s+)${oldName}(\\s*\\()`, 'g'),
+    ];
+    let result = code;
+    for (const pattern of patterns) {
+      if (pattern.test(result)) {
+        result = result.replace(pattern, `$1${newName}$2`);
       }
-      return { isDuplicate: true, currentCode, incomingCode: renamedIncoming, originalName: incomingFuncName, newName: newIncomingName };
     }
-    return { isDuplicate: false, currentCode, incomingCode };
+    return result;
+  }
+
+  handleDuplicateFunctions(currentCode, incomingCode) {
+    const currentNames = this.extractAllFunctionNames(currentCode);
+    const incomingNames = this.extractAllFunctionNames(incomingCode);
+
+    // Find duplicate names
+    const duplicates = currentNames.filter(name => incomingNames.includes(name));
+
+    if (duplicates.length === 0) {
+      return { isDuplicate: false, currentCode, incomingCode };
+    }
+
+    console.log(chalk.yellow(`⚠ Duplicate function(s) detected: ${duplicates.join(', ')}`));
+
+    // Check if content is exactly the same
+    if (currentCode.trim() === incomingCode.trim()) {
+      return { isDuplicate: true, merged: currentCode, renamedFunctions: [] };
+    }
+
+    let renamedIncoming = incomingCode;
+    const renamedFunctions = [];
+
+    for (const funcName of duplicates) {
+      // Find the context of this function in incoming to generate smart suffix
+      const funcRegex = new RegExp(`function\\s+${funcName}[^}]*}`, 's');
+      const funcMatch = incomingCode.match(funcRegex);
+      const funcContext = funcMatch ? funcMatch[0] : incomingCode;
+      
+      const suffix = this.generateSmartSuffix(funcContext);
+      const newName = `${funcName}${suffix}`;
+
+      console.log(chalk.blue(`  → Renaming incoming '${funcName}' to '${newName}'`));
+
+      renamedIncoming = this.renameFunctionInCode(renamedIncoming, funcName, newName);
+      renamedFunctions.push({ oldName: funcName, newName });
+    }
+
+    // Merge: current + renamed incoming
+    const merged = `${currentCode}\n\n${renamedIncoming}`;
+
+    return { isDuplicate: true, merged, renamedFunctions };
   }
 
   async intelligentMerge(filePath) {
@@ -167,7 +208,7 @@ class MergeGuard {
     const { lines, conflicts: parsedConflicts } = fileData;
     let mergedLines = [...lines];
     let modified = false;
-    const renamedFunctions = [];
+    const allRenamedFunctions = [];
 
     console.log(chalk.blue(`\n🔍 Analyzing conflicts in ${filePath}...\n`));
 
@@ -199,11 +240,14 @@ class MergeGuard {
       }
 
       const duplicateResult = this.handleDuplicateFunctions(currentCode, incomingCode);
+
       if (duplicateResult.isDuplicate) {
-        console.log(chalk.green(`✓ Resolution: Keeping both with smart renaming\n`));
-        const merged = `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
+        console.log(chalk.green(`✓ Resolution: Smart merge with renaming\n`));
+        const merged = duplicateResult.merged || `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
         mergedLines = this.replaceConflict(mergedLines, conflict, merged);
-        renamedFunctions.push({ oldName: duplicateResult.originalName, newName: duplicateResult.newName });
+        if (duplicateResult.renamedFunctions) {
+          allRenamedFunctions.push(...duplicateResult.renamedFunctions);
+        }
         modified = true;
         continue;
       }
@@ -216,10 +260,7 @@ class MergeGuard {
       if (hasDeclaration) {
         const suffix = this.generateSmartSuffix(incomingCode);
         const funcName = this.extractFunctionName(currentCode);
-        let renamedIncoming = incomingCode.replace(
-          new RegExp(`function\\s+${funcName}\\s*\\(`),
-          `function ${funcName}${suffix}(`
-        );
+        let renamedIncoming = this.renameFunctionInCode(incomingCode, funcName, `${funcName}${suffix}`);
         const currentHasClosingBrace = currentCode.trim().endsWith('}');
         if (currentHasClosingBrace) {
           merged = `${currentCode}\n\n${renamedIncoming}`;
@@ -234,6 +275,7 @@ class MergeGuard {
         const ctxSuffix = this.generateSmartSuffix(incomingCode);
         const lineAfterConflict = lines[conflict.endLine] || '';
         const hasClosingBraceAfter = lineAfterConflict.trim() === '}';
+
         if (ctxFuncName) {
           if (hasClosingBraceAfter) {
             merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}`;
@@ -244,16 +286,16 @@ class MergeGuard {
           merged = `${currentCode}\n\n${incomingCode}`;
         }
       }
-      
+
       mergedLines = this.replaceConflict(mergedLines, conflict, merged);
       modified = true;
     }
 
     if (modified) {
       let finalContent = mergedLines.join('\n');
-      if (renamedFunctions.length > 0) {
+      if (allRenamedFunctions.length > 0) {
         console.log(chalk.blue('🔄 Updating function references...\n'));
-        for (const { oldName, newName } of renamedFunctions) {
+        for (const { oldName, newName } of allRenamedFunctions) {
           finalContent = this.updateFunctionReferences(finalContent, oldName, newName);
           console.log(chalk.green(`  ✓ Updated: ${oldName} → ${newName}`));
         }
