@@ -248,7 +248,6 @@ class MergeGuard {
       // Check if currentCode already has complete function declaration
       const hasDeclaration = this.extractFunctionName(currentCode) !== null;
 
-      let merged;
       if (hasDeclaration) {
         const suffix = this.generateSmartSuffix(incomingCode);
         const funcName = this.extractFunctionName(currentCode);
@@ -256,7 +255,12 @@ class MergeGuard {
           new RegExp(`function\\s+${funcName}\\s*\\(`),
           `function ${funcName}${suffix}(`
         );
-        merged = `${currentCode}\n}\n\n${renamedIncoming}`;
+        const currentHasClosingBrace = currentCode.trim().endsWith('}');
+        if (currentHasClosingBrace) {
+          merged = `${currentCode}\n\n${renamedIncoming}`;
+        } else {
+          merged = `${currentCode}\n}\n\n${renamedIncoming}`;
+        }
       } else {
           // Look for function name in lines before conflict
           const ctxStart = Math.max(0, conflict.startLine - 3);
