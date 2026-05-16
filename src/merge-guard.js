@@ -240,21 +240,22 @@ class MergeGuard {
         continue;
       }
 
-      // Fallback: look for function name in context before conflict
+      // Fallback: look for function name in context
       console.log(chalk.yellow('⚠ Keeping both versions\n'));
-      const ctxStart = Math.max(0, conflict.startLine - 3);
-      const ctxLines = lines.slice(ctxStart, conflict.startLine - 1);
-      const ctxCode = ctxLines.join('\n');
-      const ctxFuncName = this.extractFunctionName(ctxCode);
-      const suffix = this.generateSmartSuffix(incomingCode);
+
+      // Check if currentCode already has complete function declaration
+      const hasDeclaration = this.extractFunctionName(currentCode) !== null;
 
       let merged;
-      if (ctxFuncName) {
-        merged = `function ${ctxFuncName}() {\n${currentCode}\n}\n\nfunction ${ctxFuncName}${suffix}() {\n${incomingCode}\n}`;
-        renamedFunctions.push({
-          oldName: ctxFuncName,
-          newName: `${ctxFuncName}${suffix}`
-        });
+      if (hasDeclaration) {
+        // Already complete functions, just rename incoming
+        const suffix = this.generateSmartSuffix(incomingCode);
+        const funcName = this.extractFunctionName(currentCode);
+        let renamedIncoming = incomingCode.replace(
+          new RegExp(`function\\s+${funcName}\\s*\\(`),
+          `function ${funcName}${suffix}(`
+        );
+        merged = `${currentCode}\n\n${renamedIncoming}`;
       } else {
         merged = `${currentCode}\n\n${incomingCode}`;
       }
@@ -395,9 +396,11 @@ async function main() {
   process.exit(success ? 0 : 1);
 }
 
-main().catch(error => {
-  console.error(chalk.red('Fatal error:'), error);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(error => {
+    console.error(chalk.red('Fatal error:'), error);
+    process.exit(1);
+  });
+}
 
 export default MergeGuard;
