@@ -235,7 +235,31 @@ class MergeGuard {
       
       if (duplicateResult.isDuplicate) {
         console.log(chalk.green(`✓ Resolution: Keeping both with smart renaming\n`));
-        const merged = `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
+        
+        // Check if we have complete functions or just function bodies
+        const hasCompleteFunctions = this.extractFunctionName(currentCode) !== null;
+        
+        let merged;
+        if (hasCompleteFunctions) {
+          // We have complete function declarations, use them as-is
+          merged = `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
+        } else {
+          // We only have function bodies, need to reconstruct complete functions
+          // Extract function name from context (look at lines before conflict)
+          const contextStart = Math.max(0, conflict.startLine - 5);
+          const contextLines = lines.slice(contextStart, conflict.startLine - 1);
+          const contextCode = contextLines.join('\n');
+          const funcName = this.extractFunctionName(contextCode);
+          
+          if (funcName) {
+            // Reconstruct two complete functions
+            merged = `function ${funcName}() {\n${currentCode}\n}\n\nfunction ${duplicateResult.newName}() {\n${incomingCode}\n}`;
+          } else {
+            // Fallback: just keep both bodies
+            merged = `${currentCode}\n\n${incomingCode}`;
+          }
+        }
+        
         mergedLines = this.replaceConflict(mergedLines, conflict, merged);
         renamedFunctions.push({
           oldName: duplicateResult.originalName,
