@@ -156,10 +156,30 @@ class MergeGuard {
       
       console.log(chalk.blue(`  → Renaming incoming function to: ${newIncomingName}`));
       
-      let renamedIncoming = incomingCode.replace(
-        new RegExp(`\\b${incomingFuncName}\\b`, ''),
-        newIncomingName
-      );
+      // Rename only the function declaration, not internal references
+      let renamedIncoming = incomingCode;
+      
+      // Try different function declaration patterns and replace only the first match
+      const patterns = [
+        { regex: new RegExp(`(function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(const\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(const\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(let\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(let\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(async\\s+function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(\\s+)${incomingFuncName}(\\s*:\\s*function)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(\\s+)${incomingFuncName}(\\s*:\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
+        { regex: new RegExp(`(^|\\s)${incomingFuncName}(\\s*\\([^)]*\\)\\s*{)`), replacement: `$1${newIncomingName}$2` }
+      ];
+      
+      for (const { regex, replacement } of patterns) {
+        if (regex.test(renamedIncoming)) {
+          renamedIncoming = renamedIncoming.replace(regex, replacement);
+          break;
+        }
+      }
       
       return {
         isDuplicate: true,
