@@ -6,6 +6,8 @@ import { createInterface } from 'readline';
 import dotenv from 'dotenv';
 
 dotenv.config();
+console.log('API Key:', process.env.WATSONX_API_KEY ? 'loaded' : 'missing');
+console.log('Project ID:', process.env.WATSONX_PROJECT_ID ? 'loaded' : 'missing');
 
 const git = simpleGit();
 
@@ -13,6 +15,145 @@ class CommitMessageGenerator {
   constructor() {
     this.apiKey = process.env.WATSONX_API_KEY;
     this.projectId = process.env.WATSONX_PROJECT_ID;
+    this.apiUrl = 'https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29';
+  }
+
+  async getIAMToken() {
+    try {
+      const response = await fetch('https://iam.cloud.ibm.com/identity/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=${this.apiKey}`
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`IAM token request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(chalk.green('IAM token received'));
+      return data.access_token;
+    } catch (error) {
+      console.error(chalk.red('Error getting IAM token:'), error.message);
+      return null;
+    }
+  }
+
+  async callWatsonxAPI(stagedFiles) {
+    try {
+      const token = await this.getIAMToken();
+      if (!token) {
+        return null;
+      }
+
+      // Get diff for each file and extract added lines
+      const fileChanges = [];
+      for (const file of stagedFiles) {
+        try {
+          const fileDiff = await git.diff(['--cached', '--', file]);
+          if (fileDiff) {
+            // Extract only lines starting with "+" (added/changed lines)
+            const addedLines = fileDiff
+              .split('\n')
+              .filter(line => line.startsWith('+') && !line.startsWith('+++'))
+              .map(line => line.substring(1)) // Remove the "+" prefix
+              .join('\n')
+              .substring(0, 300); // Limit to 300 chars per file
+
+            if (addedLines) {
+              fileChanges.push(`${file}:\n${addedLines}`);
+            }
+          }
+        } catch (error) {
+          console.error(chalk.yellow(`Warning: Could not get diff for ${file}`));
+        }
+      }
+
+      const filesSummary = fileChanges.join('\n\n');
+
+      const prompt = `Analyze the code changes below and write a git commit message.
+DO NOT copy any code or diff content into the message.
+ONLY write a human-readable summary.
+
+Format:
+feat(scope): one line summary
+
+- filename: one sentence explaining what this file does
+
+Changes to analyze:
+${filesSummary}
+
+Write ONLY the commit message:`;
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          input: prompt,
+          parameters: {
+            decoding_method: 'greedy',
+            max_new_tokens: 800,
+            min_new_tokens: 10,
+            temperature: 0.7,
+            top_k: 50,
+            top_p: 1,
+            stop_sequences: []
+          },
+          // model_id: 'meta-llama/llama-3-3-70b-instruct',
+          model_id: 'ibm/granite-8b-code-instruct', 
+          project_id: this.projectId
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(chalk.red('API Error:'), response.status, errorText);
+        return null;
+      }
+
+      const data = await response.json();
+      console.log(chalk.green('API response received'));
+      
+      if (data.results && data.results[0] && data.results[0].generated_text) {
+        // Get the generated text and clean it up
+        let generatedText = data.results[0].generated_text.trim();
+        
+        // Remove everything after "### Commit message" or similar markers
+        if (generatedText.includes('### Commit message')) {
+          generatedText = generatedText.split('### Commit message')[0].trim();
+        }
+        if (generatedText.includes('###')) {
+          generatedText = generatedText.split('###')[0].trim();
+        }
+        
+        // Remove any duplicate sections (sometimes AI repeats the entire message)
+        const lines = generatedText.split('\n');
+        const uniqueLines = [];
+        const seenLines = new Set();
+        
+        for (const line of lines) {
+          const normalized = line.trim().toLowerCase();
+          if (normalized && !seenLines.has(normalized)) {
+            seenLines.add(normalized);
+            uniqueLines.push(line.trim());
+          }
+        }
+        
+        return uniqueLines.join('\n');
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(chalk.red('Error calling watsonx.ai API:'), error.message);
+      return null;
+    }
   }
 
   async getDiff() {
@@ -30,6 +171,27 @@ class CommitMessageGenerator {
     }
   }
 
+  async getDiffSummary() {
+    try {
+      const diffSummary = await git.diffSummary(['--cached']);
+      const fileStats = [];
+      
+      for (const file of diffSummary.files) {
+        fileStats.push({
+          file: file.file,
+          insertions: file.insertions,
+          deletions: file.deletions,
+          changes: file.changes
+        });
+      }
+      
+      return fileStats;
+    } catch (error) {
+      console.error(chalk.red('Error getting diff summary:'), error.message);
+      return null;
+    }
+  }
+
   async getStatus() {
     try {
       const status = await git.status();
@@ -40,7 +202,21 @@ class CommitMessageGenerator {
     }
   }
 
-  async generateMessage(diff) {
+  async generateMessage(diff, stagedFiles) {
+    // Check if credentials exist and try watsonx.ai API first
+    if (this.apiKey && this.projectId && stagedFiles && stagedFiles.length > 0) {
+      console.log(chalk.blue('Credentials found, calling watsonx.ai...'));
+      
+      // Pass staged files list to AI
+      const aiMessage = await this.callWatsonxAPI(stagedFiles);
+      if (aiMessage) {
+        return aiMessage;
+      }
+      
+      console.log(chalk.yellow('Falling back to basic generation'));
+    }
+
+    // Fallback to basic file-based message generation
     const lines = diff.split('\n');
     const addedFiles = [];
     const modifiedFiles = [];
@@ -126,7 +302,7 @@ class CommitMessageGenerator {
     console.log();
 
     console.log(chalk.blue('Generating commit message...\n'));
-    const message = await this.generateMessage(diff);
+    const message = await this.generateMessage(diff, status.staged);
 
     console.log(chalk.cyan('Generated message:\n'));
     console.log(chalk.white(message));
@@ -181,3 +357,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export default CommitMessageGenerator;
+
+// Made with Bob
