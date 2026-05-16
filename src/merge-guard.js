@@ -250,14 +250,13 @@ class MergeGuard {
 
       let merged;
       if (hasDeclaration) {
-        // Already complete functions, just rename incoming
         const suffix = this.generateSmartSuffix(incomingCode);
         const funcName = this.extractFunctionName(currentCode);
         let renamedIncoming = incomingCode.replace(
           new RegExp(`function\\s+${funcName}\\s*\\(`),
           `function ${funcName}${suffix}(`
         );
-        merged = `${currentCode}\n\n${renamedIncoming}`;
+        merged = `${currentCode}\n}\n\n${renamedIncoming}`;
       } else {
           // Look for function name in lines before conflict
           const ctxStart = Math.max(0, conflict.startLine - 3);
@@ -268,7 +267,7 @@ class MergeGuard {
 
           if (ctxFuncName) {
             // Close current function, create new renamed function
-            merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}`;
+            merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}\n}`;
           } else {
             merged = `${currentCode}\n\n${incomingCode}`;
           }
