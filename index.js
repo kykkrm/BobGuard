@@ -5,9 +5,9 @@ import dotenv from 'dotenv';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import SecretScanner from './secret-scanner.js';
-import CommitMessageGenerator from './commit-message.js';
-import MergeGuard from './merge-guard.js';
+import SecretScanner from './src/secret-scanner.js';
+import CommitMessageGenerator from './src/commit-message.js';
+import MergeGuard from './src/merge-guard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -92,7 +92,8 @@ class BobGuard {
     
     console.log(chalk.cyan.bold('CONFIGURATION:\n'));
     console.log(chalk.gray('  Create a .env file with your credentials:'));
-    console.log(chalk.gray('    WATSONX_API_KEY=your_ibm_cloud_api_key'));
+    console.log(chalk.gray('    WATSONX_[REDACTED_GENERIC_API_KEY]));
+    console.log(chalk.gray('    WATSONX_[REDACTED_GENERIC_API_KEY]));
     console.log(chalk.gray('    WATSONX_PROJECT_ID=your_watsonx_project_id\n'));
     
     console.log(chalk.cyan.bold('FEATURES:\n'));
