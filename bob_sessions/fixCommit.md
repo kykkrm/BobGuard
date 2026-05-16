@@ -312,7 +312,7 @@ Now I can see the issue! The code is indeed just parsing file names from the dif
 3 | WATSONX_API_KEY=***REMOVED***
 4 | 
 5 | # Get your project ID from: https://dataplatform.cloud.ibm.com/projects
-6 | WATSONX_PROJECT_ID=e34dfc01-72f3-453d-918d-96f0974fe3a6
+6 | WATSONX_PROJECT_ID=***REMOVED***
 </content>
 </file>
 </files>
