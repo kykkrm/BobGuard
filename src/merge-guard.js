@@ -156,10 +156,8 @@ class MergeGuard {
       
       console.log(chalk.blue(`  → Renaming incoming function to: ${newIncomingName}`));
       
-      // Rename only the function declaration, not internal references
       let renamedIncoming = incomingCode;
       
-      // Try different function declaration patterns and replace only the first match
       const patterns = [
         { regex: new RegExp(`(function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
         { regex: new RegExp(`(const\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
@@ -169,9 +167,6 @@ class MergeGuard {
         { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*function)`), replacement: `$1${newIncomingName}$2` },
         { regex: new RegExp(`(var\\s+)${incomingFuncName}(\\s*=\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
         { regex: new RegExp(`(async\\s+function\\s+)${incomingFuncName}(\\s*\\()`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(\\s+)${incomingFuncName}(\\s*:\\s*function)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(\\s+)${incomingFuncName}(\\s*:\\s*\\([^)]*\\)\\s*=>)`), replacement: `$1${newIncomingName}$2` },
-        { regex: new RegExp(`(^|\\s)${incomingFuncName}(\\s*\\([^)]*\\)\\s*{)`), replacement: `$1${newIncomingName}$2` }
       ];
       
       for (const { regex, replacement } of patterns) {
@@ -235,31 +230,7 @@ class MergeGuard {
       
       if (duplicateResult.isDuplicate) {
         console.log(chalk.green(`✓ Resolution: Keeping both with smart renaming\n`));
-        
-        // Check if we have complete functions or just function bodies
-        const hasCompleteFunctions = this.extractFunctionName(currentCode) !== null;
-        
-        let merged;
-        if (hasCompleteFunctions) {
-          // We have complete function declarations, use them as-is
-          merged = `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
-        } else {
-          // We only have function bodies, need to reconstruct complete functions
-          // Extract function name from context (look at lines before conflict)
-          const contextStart = Math.max(0, conflict.startLine - 5);
-          const contextLines = lines.slice(contextStart, conflict.startLine - 1);
-          const contextCode = contextLines.join('\n');
-          const funcName = this.extractFunctionName(contextCode);
-          
-          if (funcName) {
-            // Reconstruct two complete functions
-            merged = `function ${funcName}() {\n${currentCode}\n}\n\nfunction ${duplicateResult.newName}() {\n${incomingCode}\n}`;
-          } else {
-            // Fallback: just keep both bodies
-            merged = `${currentCode}\n\n${incomingCode}`;
-          }
-        }
-        
+        const merged = `${duplicateResult.currentCode}\n\n${duplicateResult.incomingCode}`;
         mergedLines = this.replaceConflict(mergedLines, conflict, merged);
         renamedFunctions.push({
           oldName: duplicateResult.originalName,
@@ -269,8 +240,25 @@ class MergeGuard {
         continue;
       }
 
+      // Fallback: look for function name in context before conflict
       console.log(chalk.yellow('⚠ Keeping both versions\n'));
-      const merged = `${currentCode}\n\n${incomingCode}`;
+      const ctxStart = Math.max(0, conflict.startLine - 3);
+      const ctxLines = lines.slice(ctxStart, conflict.startLine - 1);
+      const ctxCode = ctxLines.join('\n');
+      const ctxFuncName = this.extractFunctionName(ctxCode);
+      const suffix = this.generateSmartSuffix(incomingCode);
+
+      let merged;
+      if (ctxFuncName) {
+        merged = `function ${ctxFuncName}() {\n${currentCode}\n}\n\nfunction ${ctxFuncName}${suffix}() {\n${incomingCode}\n}`;
+        renamedFunctions.push({
+          oldName: ctxFuncName,
+          newName: `${ctxFuncName}${suffix}`
+        });
+      } else {
+        merged = `${currentCode}\n\n${incomingCode}`;
+      }
+
       mergedLines = this.replaceConflict(mergedLines, conflict, merged);
       modified = true;
     }
@@ -407,13 +395,9 @@ async function main() {
   process.exit(success ? 0 : 1);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error(chalk.red('Fatal error:'), error);
-    process.exit(1);
-  });
-}
+main().catch(error => {
+  console.error(chalk.red('Fatal error:'), error);
+  process.exit(1);
+});
 
 export default MergeGuard;
-
-// Made with Bob
