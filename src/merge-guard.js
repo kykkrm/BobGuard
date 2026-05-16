@@ -259,8 +259,20 @@ class MergeGuard {
         );
         merged = `${currentCode}\n\n${renamedIncoming}`;
       } else {
-        merged = `${currentCode}\n\n${incomingCode}`;
-      }
+          // Look for function name in lines before conflict
+          const ctxStart = Math.max(0, conflict.startLine - 3);
+          const ctxLines = lines.slice(ctxStart, conflict.startLine - 1);
+          const ctxCode = ctxLines.join('\n');
+          const ctxFuncName = this.extractFunctionName(ctxCode);
+          const ctxSuffix = this.generateSmartSuffix(incomingCode);
+
+          if (ctxFuncName) {
+            // Close current function, create new renamed function
+            merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}`;
+          } else {
+            merged = `${currentCode}\n\n${incomingCode}`;
+          }
+        }
 
       mergedLines = this.replaceConflict(mergedLines, conflict, merged);
       modified = true;
