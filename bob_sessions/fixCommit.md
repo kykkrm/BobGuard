@@ -309,7 +309,7 @@ Now I can see the issue! The code is indeed just parsing file names from the dif
 <content lines="1-6">
 1 | # IBM watsonx.ai API Configuration
 2 | # Get your API key from: https://cloud.ibm.com/iam/apikeys
-3 | WATSONX_API_KEY=LDNXxGuaq-FwVQ9-Zl-f2y5aLHwkpliouayYZcWutNPh
+3 | WATSONX_API_KEY=***REMOVED***
 4 | 
 5 | # Get your project ID from: https://dataplatform.cloud.ibm.com/projects
 6 | WATSONX_PROJECT_ID=e34dfc01-72f3-453d-918d-96f0974fe3a6

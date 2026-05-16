@@ -42,7 +42,7 @@ Instead of treating code as plain text, Bob analyzes:
 ## Features
 
 ### Feature 1: Secret Scanner
-Bob scans staged files before every commit to detect and remove sensitive data.
+Scans staged files before every commit to detect and remove sensitive data.
 
 **How it works:**
 - Scans all staged files for API keys, tokens, passwords, and secrets
@@ -50,8 +50,18 @@ Bob scans staged files before every commit to detect and remove sensitive data.
 - Notifies you exactly which lines were removed and why
 - Prevents accidental exposure before it reaches the repository
 
+**Commands:**
+```bash
+# Scan for secrets only
+node index.js scan
+
+# Scan and auto-remove secrets
+node index.js scan --auto-remove
+```
+
 **Example:**
 ```bash
+$ node index.js scan
 [Bob] Scanning for secrets...
 [Bob] Found API key in src/config.js:12
 [Bob] Removed: OPENAI_API_KEY="sk-proj-..."
@@ -60,31 +70,42 @@ Bob scans staged files before every commit to detect and remove sensitive data.
 
 ---
 
-### Feature 2: Smart Commit Message Generator
-Bob reads your full diff and generates descriptive commit messages automatically.
+### Feature 2: AI-Powered Commit Message Generator
+Uses IBM watsonx.ai to analyze your code changes and generate descriptive commit messages.
 
 **How it works:**
 - Analyzes all staged changes after `git add`
+- Sends actual code diffs to watsonx.ai (granite-8b-code-instruct model)
 - Understands what was added, modified, or removed
 - Generates a clear, semantic commit message
 - Follows conventional commit format (feat, fix, refactor, etc.)
+- Groups files by type for commits with >3 files
+
+**Commands:**
+```bash
+# Generate AI commit message
+node index.js commit
+```
 
 **Example:**
 ```bash
-git add .
-/safe-commit
+$ git add .
+$ node index.js commit
 
 [Bob] Analyzing changes...
 [Bob] Generated commit message:
-      "feat: add payment handler, fix null check, remove hardcoded API key"
+      "feat(core): add secret scanner and AI commit generator
+      
+      - secret-scanner.js: detects API keys and tokens
+      - commit-message.js: integrates watsonx.ai for commit messages"
 
-Confirm? (y/n)
+Commit with this message? (y/n): y
 ```
 
 ---
 
 ### Feature 3: Intelligent Auto-Merge
-Bob reads all commit messages per branch, maps function ownership, and merges code intelligently.
+Reads all commit messages per branch, maps function ownership, and merges code intelligently.
 
 **How it works:**
 - Reads commit history from all branches
@@ -95,6 +116,12 @@ Bob reads all commit messages per branch, maps function ownership, and merges co
 - Fixes syntax errors after merge automatically
 - No human decision needed
 
+**Commands:**
+```bash
+# Smart merge with auto-resolution
+node index.js merge <branch> --auto
+```
+
 **Example:**
 ```bash
 Branch A: getUser() by Alice
@@ -102,6 +129,17 @@ Branch B: getUser() by Bob
 
 GitHub "Accept Both" → keeps both, breaks syntax
 BobGuard → renames to getUserFromDB() + getUserFromAPI()
+```
+
+---
+
+### Feature 4: Full Workflow Guard
+Combines secret scanning and AI commit generation in one command.
+
+**Commands:**
+```bash
+# Run full workflow (scan + commit)
+node index.js guard
 ```
 
 ---
@@ -131,17 +169,19 @@ BobGuard integrates seamlessly into your existing Git workflow:
 ```bash
 git add .
     ↓
-/safe-commit
+node index.js guard
     ↓
 [Bob] Scan secrets → remove + notify
     ↓
-[Bob] Generate commit message → user confirms
+[Bob] Generate AI commit message → user confirms
     ↓
 git commit -m "Generated message"
     ↓
 git push
     ↓
-[Bob] On PR: read all commits → map ownership
+node index.js merge feature-branch --auto
+    ↓
+[Bob] Read all commits → map ownership
     ↓
 [Bob] Detect semantic conflicts
     ↓
@@ -176,9 +216,13 @@ Bob follows these 5 automatic rules when merging code:
 
 BobGuard is built with cutting-edge AI and Git integration:
 
-- **IBM Bob IDE** — Core AI engine for code understanding
-- **Bob Slash Command** (`/safe-commit`) — Custom workflow trigger
-- **Bob MCP Server** — GitHub integration for PR automation
+- **IBM Bob IDE** — Used for building and developing the project
+- **Node.js** — Runtime environment
+- **simple-git** — Git operations library
+- **IBM watsonx.ai API** — AI-powered commit message generation
+  - Model: `ibm/granite-8b-code-instruct`
+- **chalk** — Terminal colors and formatting
+- **dotenv** — Environment variable management
 - **Git + GitHub** — Version control foundation
 
 ---
@@ -186,9 +230,9 @@ BobGuard is built with cutting-edge AI and Git integration:
 ## Getting Started
 
 ### Prerequisites
-- IBM Bob IDE installed
+- Node.js installed
 - Git configured
-- GitHub repository
+- IBM watsonx.ai account (for AI commit messages)
 
 ### Installation
 
@@ -198,44 +242,56 @@ BobGuard is built with cutting-edge AI and Git integration:
    cd bobguard
    ```
 
-2. **Configure Bob MCP Server:**
+2. **Install dependencies:**
    ```bash
-   # Add GitHub integration to Bob
-   bob mcp add github
+   npm install
    ```
 
-3. **Set up the `/safe-commit` command:**
+3. **Configure watsonx.ai credentials:**
+   
+   Create a `.env` file in the project root:
    ```bash
-   # Register the custom slash command
-   bob command register safe-commit
+   WATSONX_API_KEY=your_ibm_cloud_api_key
+   WATSONX_PROJECT_ID=your_watsonx_project_id
    ```
+
+   Get your credentials from:
+   - IBM Cloud API Key: https://cloud.ibm.com/iam/apikeys
+   - watsonx.ai Project ID: https://dataplatform.cloud.ibm.com/wx/home
 
 ### Usage
 
-**Basic workflow:**
+**Scan for secrets:**
 ```bash
-# Stage your changes
-git add .
+# Scan only
+node index.js scan
 
-# Use BobGuard's safe commit
-/safe-commit
-
-# Bob will:
-# 1. Scan for secrets
-# 2. Generate commit message
-# 3. Wait for your confirmation
-# 4. Commit safely
-
-# Push and let Bob handle merges
-git push
+# Scan and auto-remove
+node index.js scan --auto-remove
 ```
 
-**On Pull Requests:**
-Bob automatically:
-- Analyzes all commits
-- Maps function ownership
-- Resolves conflicts intelligently
-- Merges without breaking code
+**Generate AI commit message:**
+```bash
+git add .
+node index.js commit
+
+# The AI will analyze your changes and generate a commit message
+# You'll be asked to confirm before committing
+```
+
+**Full workflow (scan + commit):**
+```bash
+git add .
+node index.js guard
+```
+
+**Smart merge:**
+```bash
+node index.js merge feature-branch --auto
+```
+
+**Without watsonx.ai credentials:**
+BobGuard will fall back to basic commit message generation based on file names.
 
 ---
 
@@ -264,9 +320,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Use `/safe-commit` for your commits
+3. Use `node index.js commit` for your commits
 4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request (Bob will handle the merge!)
+5. Open a Pull Request
 
 ---
 
