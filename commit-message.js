@@ -42,6 +42,34 @@ class CommitMessageGenerator {
     }
   }
 
+  groupFilesByType(files) {
+    const groups = {
+      code: [],
+      docs: [],
+      assets: [],
+      sessions: [],
+      config: []
+    };
+
+    for (const file of files) {
+      if (file.startsWith('bob_sessions/')) {
+        groups.sessions.push(file);
+      } else if (file.endsWith('.js')) {
+        groups.code.push(file);
+      } else if (file.endsWith('.md')) {
+        groups.docs.push(file);
+      } else if (file.endsWith('.png') || file.endsWith('.jpg') || file.endsWith('.gif')) {
+        groups.assets.push(file);
+      } else if (file.endsWith('.json') || file === '.gitignore') {
+        groups.config.push(file);
+      } else {
+        groups.code.push(file); // Default to code
+      }
+    }
+
+    return groups;
+  }
+
   async callWatsonxAPI(stagedFiles) {
     try {
       const token = await this.getIAMToken();
@@ -49,32 +77,70 @@ class CommitMessageGenerator {
         return null;
       }
 
-      // Get diff for each file and extract added lines
-      const fileChanges = [];
-      for (const file of stagedFiles) {
-        try {
-          const fileDiff = await git.diff(['--cached', '--', file]);
-          if (fileDiff) {
-            // Extract only lines starting with "+" (added/changed lines)
-            const addedLines = fileDiff
-              .split('\n')
-              .filter(line => line.startsWith('+') && !line.startsWith('+++'))
-              .map(line => line.substring(1)) // Remove the "+" prefix
-              .join('\n')
-              .substring(0, 300); // Limit to 300 chars per file
+      // Group files if more than 3
+      const useGrouping = stagedFiles.length > 3;
+      let prompt;
 
-            if (addedLines) {
-              fileChanges.push(`${file}:\n${addedLines}`);
-            }
+      if (useGrouping) {
+        const groups = this.groupFilesByType(stagedFiles);
+        const groupSummaries = [];
+
+        for (const [groupName, files] of Object.entries(groups)) {
+          if (files.length > 0) {
+            groupSummaries.push(`${groupName}: ${files.join(', ')}`);
           }
-        } catch (error) {
-          console.error(chalk.yellow(`Warning: Could not get diff for ${file}`));
         }
-      }
 
-      const filesSummary = fileChanges.join('\n\n');
+        prompt = `Analyze these file changes and write a commit message.
+BE SPECIFIC about what each file actually does.
+DO NOT use metaphors, analogies, or generic phrases.
+DO NOT say things like 'a good commit message is like...'
 
-      const prompt = `Analyze the code changes below and write a git commit message.
+For each file, describe the ACTUAL functionality:
+- What does this code do technically?
+- What was added or changed?
+
+File groups:
+${groupSummaries.join('\n')}
+
+Format:
+feat(core): update code, docs, and session exports
+
+Code changes:
+- filename: description
+- filename: description
+
+Documentation:
+- filename: description
+
+Write ONLY the commit message, nothing else:`;
+      } else {
+        // Get diff for each file and extract added lines
+        const fileChanges = [];
+        for (const file of stagedFiles) {
+          try {
+            const fileDiff = await git.diff(['--cached', '--', file]);
+            if (fileDiff) {
+              // Extract only lines starting with "+" (added/changed lines)
+              const addedLines = fileDiff
+                .split('\n')
+                .filter(line => line.startsWith('+') && !line.startsWith('+++'))
+                .map(line => line.substring(1)) // Remove the "+" prefix
+                .join('\n')
+                .substring(0, 300); // Limit to 300 chars per file
+
+              if (addedLines) {
+                fileChanges.push(`${file}:\n${addedLines}`);
+              }
+            }
+          } catch (error) {
+            console.error(chalk.yellow(`Warning: Could not get diff for ${file}`));
+          }
+        }
+
+        const filesSummary = fileChanges.join('\n\n');
+
+        prompt = `Analyze the code changes below and write a git commit message.
 DO NOT copy any code or diff content into the message.
 ONLY write a human-readable summary.
 
@@ -87,6 +153,7 @@ Changes to analyze:
 ${filesSummary}
 
 Write ONLY the commit message:`;
+      }
 
       const response = await fetch(this.apiUrl, {
         method: 'POST',
@@ -358,4 +425,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 export default CommitMessageGenerator;
 
-// Made with Bob
