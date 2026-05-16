@@ -204,6 +204,8 @@ class MergeGuard {
       const incomingCode = conflict.incomingBranch.join('\n');
 
       console.log(chalk.yellow(`Conflict at lines ${conflict.startLine}-${conflict.endLine}:`));
+      console.log('DEBUG currentCode:', JSON.stringify(currentCode));
+      console.log('DEBUG incomingCode:', JSON.stringify(incomingCode));
 
       if (currentCode.trim() === '' && incomingCode.trim() !== '') {
         console.log(chalk.green('✓ Resolution: Taking incoming changes\n'));
