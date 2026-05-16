@@ -232,13 +232,19 @@ class MergeGuard {
         const ctxCode = ctxLines.join('\n');
         const ctxFuncName = this.extractFunctionName(ctxCode);
         const ctxSuffix = this.generateSmartSuffix(incomingCode);
+        const lineAfterConflict = lines[conflict.endLine] || '';
+        const hasClosingBraceAfter = lineAfterConflict.trim() === '}';
         if (ctxFuncName) {
-          merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}\n}`;
+          if (hasClosingBraceAfter) {
+            merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}`;
+          } else {
+            merged = `${currentCode}\n}\n\nfunction ${ctxFuncName}${ctxSuffix}() {\n${incomingCode}\n}`;
+          }
         } else {
           merged = `${currentCode}\n\n${incomingCode}`;
         }
       }
-
+      
       mergedLines = this.replaceConflict(mergedLines, conflict, merged);
       modified = true;
     }
