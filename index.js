@@ -76,19 +76,19 @@ class BobGuard {
     
     console.log(chalk.cyan.bold('EXAMPLES:\n'));
     console.log(chalk.gray('  # Scan for secrets'));
-    console.log(chalk.cyan('  node index.js scan\n'));
+    console.log(chalk.cyan('  bobguard scan\n'));
     
     console.log(chalk.gray('  # Scan and auto-remove secrets'));
-    console.log(chalk.cyan('  node index.js scan --auto-remove\n'));
+    console.log(chalk.cyan('  bobguard scan --auto-remove\n'));
     
     console.log(chalk.gray('  # Generate commit message'));
-    console.log(chalk.cyan('  node index.js commit\n'));
+    console.log(chalk.cyan('  bobguard commit\n'));
     
     console.log(chalk.gray('  # Full workflow: scan then commit'));
-    console.log(chalk.cyan('  node index.js guard\n'));
+    console.log(chalk.cyan('  bobguard guard\n'));
     
     console.log(chalk.gray('  # Merge with auto-resolve'));
-    console.log(chalk.cyan('  node index.js merge feature-branch --auto\n'));
+    console.log(chalk.cyan('  bobguard merge feature-branch --auto\n'));
     
     console.log(chalk.cyan.bold('CONFIGURATION:\n'));
     console.log(chalk.gray('  Create a .env file with your credentials:'));
