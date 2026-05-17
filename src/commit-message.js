@@ -77,83 +77,43 @@ class CommitMessageGenerator {
         return null;
       }
 
-      // Group files if more than 3
-      const useGrouping = stagedFiles.length > 3;
-      let prompt;
+      // Get diff for each file and extract added lines
+      const fileChanges = [];
+      for (const file of stagedFiles) {
+        try {
+          const fileDiff = await git.diff(['--cached', '--', file]);
+          if (fileDiff) {
+            // Extract only lines starting with "+" (added/changed lines)
+            const addedLines = fileDiff
+              .split('\n')
+              .filter(line => line.startsWith('+') && !line.startsWith('+++'))
+              .map(line => line.substring(1)) // Remove the "+" prefix
+              .join('\n')
+              .substring(0, 300); // Limit to 300 chars per file
 
-      if (useGrouping) {
-        const groups = this.groupFilesByType(stagedFiles);
-        const groupSummaries = [];
-
-        for (const [groupName, files] of Object.entries(groups)) {
-          if (files.length > 0) {
-            groupSummaries.push(`${groupName}: ${files.join(', ')}`);
-          }
-        }
-
-        prompt = `Analyze these file changes and write a commit message.
-BE SPECIFIC about what each file actually does.
-DO NOT use metaphors, analogies, or generic phrases.
-DO NOT say things like 'a good commit message is like...'
-
-For each file, describe the ACTUAL functionality:
-- What does this code do technically?
-- What was added or changed?
-
-File groups:
-${groupSummaries.join('\n')}
-
-Format:
-feat(core): update code, docs, and session exports
-
-Code changes:
-- filename: description
-- filename: description
-
-Documentation:
-- filename: description
-
-Write ONLY the commit message, nothing else:`;
-      } else {
-        // Get diff for each file and extract added lines
-        const fileChanges = [];
-        for (const file of stagedFiles) {
-          try {
-            const fileDiff = await git.diff(['--cached', '--', file]);
-            if (fileDiff) {
-              // Extract only lines starting with "+" (added/changed lines)
-              const addedLines = fileDiff
-                .split('\n')
-                .filter(line => line.startsWith('+') && !line.startsWith('+++'))
-                .map(line => line.substring(1)) // Remove the "+" prefix
-                .join('\n')
-                .substring(0, 300); // Limit to 300 chars per file
-
-              if (addedLines) {
-                fileChanges.push(`${file}:\n${addedLines}`);
-              }
+            if (addedLines) {
+              fileChanges.push(`${file}:\n${addedLines}`);
             }
-          } catch (error) {
-            console.error(chalk.yellow(`Warning: Could not get diff for ${file}`));
           }
+        } catch (error) {
+          console.error(chalk.yellow(`Warning: Could not get diff for ${file}`));
         }
-
-        const filesSummary = fileChanges.join('\n\n');
-
-        prompt = `Analyze the code changes below and write a git commit message.
-DO NOT copy any code or diff content into the message.
-ONLY write a human-readable summary.
-
-Format:
-feat(scope): one line summary
-
-- filename: one sentence explaining what this file does
-
-Changes to analyze:
-${filesSummary}
-
-Write ONLY the commit message:`;
       }
+
+      const diffContent = fileChanges.join('\n\n');
+
+      const prompt = `You are a git expert. Analyze these git changes and write ONE commit message.
+
+Changed files: ${stagedFiles.join(', ')}
+
+Key changes:
+${diffContent.slice(0, 800)}
+
+Write ONE commit message in format:
+type(scope): description
+- file: what changed
+
+Your answer (commit message only):`;
 
       const response = await fetch(this.apiUrl, {
         method: 'POST',
@@ -192,59 +152,38 @@ Write ONLY the commit message:`;
         // Get the generated text and clean it up
         let generatedText = data.results[0].generated_text.trim();
         
-        // Remove everything after "### Commit message" or similar markers
-        if (generatedText.includes('### Commit message')) {
-          generatedText = generatedText.split('### Commit message')[0].trim();
-        }
-        if (generatedText.includes('###')) {
-          generatedText = generatedText.split('###')[0].trim();
-        }
-        
-        // Remove meta-instructions after first empty line
+        // Take only the first paragraph (before any blank line followed by #, http, or -)
         const lines = generatedText.split('\n');
-        const cleanedLines = [];
-        let foundEmptyLine = false;
+        const commitLines = [];
+        let foundBlankLine = false;
         
         for (const line of lines) {
           const trimmedLine = line.trim();
           
-          // Track if we've seen an empty line
+          // If we find a blank line, mark it
           if (!trimmedLine) {
-            foundEmptyLine = true;
-            cleanedLines.push(line);
+            foundBlankLine = true;
+            commitLines.push(line);
             continue;
           }
           
-          // After empty line, check for meta-instructions
-          if (foundEmptyLine) {
-            const lowerLine = trimmedLine.toLowerCase();
-            if (lowerLine.includes('the commit message should') ||
-                lowerLine.includes("here's the final") ||
-                lowerLine.includes('here is the final') ||
-                lowerLine.includes('note:') ||
-                lowerLine.includes('explanation:') ||
-                lowerLine.includes('this commit message')) {
-              // Stop processing - this is meta-instruction
+          // After a blank line, check if the next line starts with unwanted content
+          if (foundBlankLine) {
+            if (trimmedLine.startsWith('#') ||
+                trimmedLine.startsWith('http') ||
+                trimmedLine.startsWith('-') ||
+                trimmedLine.toLowerCase().includes('guidelines') ||
+                trimmedLine.toLowerCase().includes('reference')) {
+              // Stop here - this is unwanted content
               break;
             }
           }
           
-          cleanedLines.push(line);
+          commitLines.push(line);
         }
         
-        // Remove any duplicate sections (sometimes AI repeats the entire message)
-        const uniqueLines = [];
-        const seenLines = new Set();
-        
-        for (const line of cleanedLines) {
-          const normalized = line.trim().toLowerCase();
-          if (normalized && !seenLines.has(normalized)) {
-            seenLines.add(normalized);
-            uniqueLines.push(line.trim());
-          }
-        }
-        
-        return uniqueLines.join('\n');
+        // Join and trim the result
+        return commitLines.join('\n').trim();
       }
       
       return null;
